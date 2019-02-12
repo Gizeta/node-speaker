@@ -1,0 +1,12 @@
+*.Plo
+*.Po
+mpg123/config.log
+mpg123/config.status
+mpg123/libmpg123.pc
+mpg123/libout123.pc
+mpg123/libtool
+mpg123/Makefile
+mpg123/src/config.h
+mpg123/src/stamp-h1
+mpg123/src/libmpg123/mpg123.h
+mpg123/src/libout123/out123.h

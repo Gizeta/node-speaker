@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "node_pointer.h"
-#include "output.h"
+#include "out123_int.h"
 
 using namespace v8;
 using namespace node;
@@ -14,7 +14,7 @@ namespace {
 
 struct write_req {
   uv_work_t req;
-  audio_output_t *ao;
+  out123_handle *ao;
   unsigned char *buffer;
   int len;
   int written;
@@ -24,8 +24,8 @@ struct write_req {
 NAN_METHOD(Open) {
   Nan::EscapableHandleScope scope;
   int r;
-  audio_output_t *ao = UnwrapPointer<audio_output_t *>(info[0]);
-  memset(ao, 0, sizeof(audio_output_t));
+  out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
+  memset(ao, 0, sizeof(out123_handle));
 
   ao->channels = info[1]->Int32Value(); /* channels */
   ao->rate = info[2]->Int32Value(); /* sample rate */
@@ -52,7 +52,7 @@ void write_after (uv_work_t *);
 
 NAN_METHOD(Write) {
   Nan::HandleScope scope;
-  audio_output_t *ao = UnwrapPointer<audio_output_t *>(info[0]);
+  out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
   unsigned char *buffer = UnwrapPointer<unsigned char *>(info[1]);
   int len = info[2]->Int32Value();
 
@@ -90,7 +90,7 @@ void write_after (uv_work_t *req) {
 
 NAN_METHOD(Flush) {
   Nan::HandleScope scope;
-  audio_output_t *ao = UnwrapPointer<audio_output_t *>(info[0]);
+  out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
   /* TODO: async */
   ao->flush(ao);
   info.GetReturnValue().SetUndefined();
@@ -98,7 +98,7 @@ NAN_METHOD(Flush) {
 
 NAN_METHOD(Close) {
   Nan::EscapableHandleScope scope;
-  audio_output_t *ao = UnwrapPointer<audio_output_t *>(info[0]);
+  out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
   ao->close(ao);
   int r = 0;
   if (ao->deinit) {
@@ -123,8 +123,8 @@ void Initialize(Handle<Object> target) {
                 Nan::New("revision").ToLocalChecked(),
                 Nan::New(mpg123_output_module_info.revision).ToLocalChecked());
 
-  audio_output_t ao;
-  memset(&ao, 0, sizeof(audio_output_t));
+  out123_handle ao;
+  memset(&ao, 0, sizeof(out123_handle));
   mpg123_output_module_info.init_output(&ao);
   ao.channels = 2;
   ao.rate = 44100;
@@ -134,7 +134,7 @@ void Initialize(Handle<Object> target) {
   ao.close(&ao);
 
   target->Set(Nan::New("sizeof_audio_output_t").ToLocalChecked(),
-              Nan::New(static_cast<uint32_t>(sizeof(audio_output_t))));
+              Nan::New(static_cast<uint32_t>(sizeof(out123_handle))));
 
 #define CONST_INT(value) \
   Nan::ForceSet(target, Nan::New(#value).ToLocalChecked(), Nan::New(value), \

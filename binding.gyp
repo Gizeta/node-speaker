@@ -6,10 +6,12 @@
         'src/binding.cc',
       ],
       "include_dirs" : [
-        '<!(node -e "require(\'nan\')")'
+        '<!(node -e "require(\'nan\')")',
+        'deps/mpg123/src/compat',
+        'deps/mpg123/src/libout123'
       ],
       'dependencies': [
-        'deps/mpg123/mpg123.gyp:output'
+        'deps/mpg123.gyp:module'
       ],
     }
   ]
