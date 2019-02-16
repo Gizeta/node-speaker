@@ -21,27 +21,32 @@ struct write_req {
   Nan::Callback *callback;
 };
 
+NAN_METHOD(Create) {
+  Nan::EscapableHandleScope scope;
+
+  out123_handle *ao = out123_new();
+
+  if (!ao) {
+    out123_del(ao);
+  } else if (out123_open(ao, NULL, NULL) != OUT123_OK) {
+    out123_del(ao);
+  }
+
+  info.GetReturnValue().Set(scope.Escape(WrapPointer(ao, static_cast<uint32_t>(sizeof ao))));
+}
+
 NAN_METHOD(Open) {
   Nan::EscapableHandleScope scope;
   int r;
   out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
-  memset(ao, 0, sizeof(out123_handle));
 
-  ao->channels = info[1]->Int32Value(); /* channels */
-  ao->rate = info[2]->Int32Value(); /* sample rate */
-  ao->format = info[3]->Int32Value(); /* MPG123_ENC_* format */
+  int channels = info[1]->Int32Value(); /* channels */
+  long rate = (long) info[2]->Int32Value(); /* sample rate */
+  int encoding = info[3]->Int32Value(); /* MPG123_ENC_* format */
 
-  if (info[4]->IsString()) {
-    v8::Local<v8::String> deviceString = info[4]->ToString();
-    ao->device = new char[deviceString->Length() + 1];
-    deviceString->WriteOneByte(reinterpret_cast<uint8_t *>(ao->device));
-  }
-
-  /* init_output() */
-  r = mpg123_output_module_info.init_output(ao);
-  if (r == 0) {
-    /* open() */
-    r = ao->open(ao);
+  r = out123_start(ao, rate, channels, encoding);
+  if (r || !ao) {
+    out123_del(ao);
   }
 
   info.GetReturnValue().Set(scope.Escape(Nan::New<v8::Integer>(r)));
@@ -72,7 +77,7 @@ NAN_METHOD(Write) {
 
 void write_async (uv_work_t *req) {
   write_req *wreq = reinterpret_cast<write_req *>(req->data);
-  wreq->written = wreq->ao->write(wreq->ao, wreq->buffer, wreq->len);
+  wreq->written = out123_play(wreq->ao, wreq->buffer, wreq->len);
 }
 
 void write_after (uv_work_t *req) {
@@ -91,20 +96,18 @@ void write_after (uv_work_t *req) {
 NAN_METHOD(Flush) {
   Nan::HandleScope scope;
   out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
-  /* TODO: async */
-  ao->flush(ao);
+  out123_drain(ao);
   info.GetReturnValue().SetUndefined();
 }
 
 NAN_METHOD(Close) {
   Nan::EscapableHandleScope scope;
   out123_handle *ao = UnwrapPointer<out123_handle *>(info[0]);
-  ao->close(ao);
   int r = 0;
-  if (ao->deinit) {
-    r = ao->deinit(ao);
+  if (ao) {
+    out123_close(ao);
+    r = 1;
   }
-  delete ao->device;
   info.GetReturnValue().Set(scope.Escape(Nan::New<v8::Integer>(r)));
 }
 
@@ -123,18 +126,10 @@ void Initialize(Handle<Object> target) {
                 Nan::New("revision").ToLocalChecked(),
                 Nan::New(mpg123_output_module_info.revision).ToLocalChecked());
 
-  out123_handle ao;
-  memset(&ao, 0, sizeof(out123_handle));
-  mpg123_output_module_info.init_output(&ao);
-  ao.channels = 2;
-  ao.rate = 44100;
-  ao.format = MPG123_ENC_SIGNED_16;
-  ao.open(&ao);
-  Nan::DefineOwnProperty(target, Nan::New("formats").ToLocalChecked(), Nan::New(ao.get_formats(&ao)));
-  ao.close(&ao);
-
-  target->Set(Nan::New("sizeof_audio_output_t").ToLocalChecked(),
-              Nan::New(static_cast<uint32_t>(sizeof(out123_handle))));
+  out123_handle *ao = out123_new();
+  out123_open(ao, NULL, NULL);
+  Nan::DefineOwnProperty(target, Nan::New("formats").ToLocalChecked(), Nan::New(out123_encodings(ao, -1, -1)));
+  out123_del(ao);
 
 #define CONST_INT(value) \
   Nan::DefineOwnProperty(target, Nan::New(#value).ToLocalChecked(), Nan::New(value), \
@@ -151,6 +146,7 @@ void Initialize(Handle<Object> target) {
   CONST_INT(MPG123_ENC_SIGNED_32);
   CONST_INT(MPG123_ENC_UNSIGNED_32);
 
+  Nan::SetMethod(target, "create", Create);
   Nan::SetMethod(target, "open", Open);
   Nan::SetMethod(target, "write", Write);
   Nan::SetMethod(target, "flush", Flush);
